@@ -1,4 +1,4 @@
-//works as is
+//works as is as of 10/27/2023 friday
 #include <Arduino.h>
 #include <mcp_can.h>
 #include <SPI.h>
@@ -63,44 +63,6 @@ int processSensorData(byte data[2]) {
   return rez12;
 }
 
-void handlePing(byte sensorID, int &rez12) {
-  unsigned long &lastPing = (sensorID == 0x54) ? lastPing54 : (sensorID == 0x24) ? lastPing24 : (sensorID == 0x5C) ? lastPing5C : lastPing58;
-
-  if (millis() - lastPing >= pingInterval) {
-    lastPing = millis();
-    Serial3.write(sensorID);
-    delay(1);
-    if (Serial3.available() == 2) {
-      byte Data_rec[2];
-      Data_rec[0] = Serial3.read();
-      Data_rec[1] = Serial3.read();
-      rez12 = processSensorData(Data_rec);
-    } else {
-      if(debug_serialRead){
-        Serial.print("No data ");
-        Serial.println(sensorID, HEX);
-      }
-    }
-    while (Serial3.available()) Serial3.read();
-  }
-}
-void ping_fixed2mbps(byte sensorID, int &rez12){
-    unsigned long &lastPing = (sensorID == 0x14) ? lastPing14 :  lastPing18  ;
-    if (millis() - lastPing >= pingInterval) {  
-        lastPing = millis();  
-        digitalWrite(DE_RE_PIN, HIGH); // HIGH for transmitting
-        Serial2.write(sensorID);
-        digitalWrite(DE_RE_PIN, LOW); // LOW for receiving
-        delay(1);
-        if (Serial2.available() == 2) {
-          byte Data_rec[2];
-          Data_rec[0] = Serial2.read();
-          Data_rec[1] = Serial2.read();
-          rez12 = processSensorData(Data_rec);
-        }
-        while (Serial2.available()) Serial2.read();
-      }
-}
 void handleGeneralPing(byte sensorID, int &rez12, HardwareSerial &serialPort, int deRePin = -1) {
   unsigned long &lastPing = (sensorID == 0x54) ? lastPing54 : 
                             (sensorID == 0x24) ? lastPing24 : 
