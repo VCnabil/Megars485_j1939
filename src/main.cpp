@@ -1,51 +1,33 @@
 //works as is as of 10/27/2023 friday
 #include <Arduino.h>
 #include <mcp_can.h>
-#include <SPI.h>
-
-#define PIN_RS485_RX 15
-#define PIN_RS485_TX 14
+ 
 //********************************manip these
 bool debug_serialRead=false;
 bool debug_printValues=false;
-unsigned long pingInterval = 2;
-// unsigned long pingInterval_2mbps = 1;
+unsigned long pingInterval = 1;
 unsigned long PrintDebugInterval = 500;
 unsigned long SendCanIntervalMS = 50;
 //********************************DONT TOUCH THESE
-unsigned long lastPing24 = 0;
-unsigned long lastPing58 = 0;
-unsigned long lastPing54 = 0;
-unsigned long lastPing5C = 0;
+unsigned long lastPing14_A = 0;
+unsigned long lastPing24_B = 0;
+unsigned long lastPing34_C = 0;
+unsigned long lastPing44_D = 0;
 unsigned long lastPrintDebug = 0;
 unsigned long lastCanSend = 0;
 byte data[8] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
-int rez12_24 = 0;
-int rez12_58 = 0;
-int rez12_54 = 0;
-int rez12_5C = 0;
-
+int rez12_14A = 0;
+int rez12_24B = 0;
+int rez12_34C = 0;
+int rez12_44D = 0;
 MCP_CAN CAN0(10);
-const int DE_RE_PIN = 5; //
-unsigned long lastT = 0;
-unsigned long lastPing14 = 0;
-unsigned long lastPing18 = 0; 
  
-int rez12_14 = 0;
-int rez12_18 = 0;
-
 void initSerial() {
   Serial.begin(115200);
   delay(200);
-  Serial3.begin(115200);
+  Serial3.begin(38400);
   Serial.println("RS485-Test");
-  delay(200);
-
-    pinMode(DE_RE_PIN, OUTPUT);
-  digitalWrite(DE_RE_PIN, LOW); // Initialize DE/RE pin to LOW for receiving
-  Serial2.begin(2000000);  
-   
-  
+  delay(200);  
 }
 
 void initCAN() {
@@ -63,33 +45,22 @@ int processSensorData(byte data[2]) {
   return rez12;
 }
 
-void handleGeneralPing(byte sensorID, int &rez12, HardwareSerial &serialPort, int deRePin = -1) {
-  unsigned long &lastPing = (sensorID == 0x54) ? lastPing54 : 
-                            (sensorID == 0x24) ? lastPing24 : 
-                            (sensorID == 0x5C) ? lastPing5C : 
-                            (sensorID == 0x14) ? lastPing14 : 
-                            (sensorID == 0x58) ? lastPing58 : 
-                            lastPing18;
+void handleGeneralPing(byte sensorID, int &argrez12, HardwareSerial &serialPort) {
+  unsigned long &lastPing = (sensorID == 0x14) ? lastPing14_A : 
+                            (sensorID == 0x24) ? lastPing24_B : 
+                            (sensorID == 0x34) ? lastPing34_C : 
+                            (sensorID == 0x44) ? lastPing44_D : 
+                            lastPing24_B;
 
   if (millis() - lastPing >= pingInterval) {
     lastPing = millis();
-    
-    if (deRePin != -1) {
-      digitalWrite(deRePin, HIGH); // HIGH for transmitting
-    }
-    
     serialPort.write(sensorID);
-    
-    if (deRePin != -1) {
-      digitalWrite(deRePin, LOW); // LOW for receiving
-    }
-    
     delay(1);
     if (serialPort.available() == 2) {
       byte Data_rec[2];
       Data_rec[0] = serialPort.read();
       Data_rec[1] = serialPort.read();
-      rez12 = processSensorData(Data_rec);
+      argrez12 = processSensorData(Data_rec);
     } else {
       if(debug_serialRead){
         Serial.print("No data ");
@@ -104,13 +75,11 @@ void printValues() {
   if(!debug_printValues)return;
   if (millis() - lastPrintDebug >= PrintDebugInterval) {
     lastPrintDebug = millis();
-    Serial.print(" 58: "); Serial.print(rez12_58); Serial.print("   ");
-    Serial.print(" 24: "); Serial.print(rez12_24);
-    Serial.print(" 54: "); Serial.print(rez12_54); Serial.print("   ");
-    Serial.print(" 5C: "); Serial.print(rez12_5C);
-    Serial.print(" 14: "); Serial.print(rez12_14); Serial.print("   ");
-    Serial.print(" 18: "); Serial.print(rez12_18);
-    Serial.println("   ");
+    Serial.print(" 14A: "); Serial.print(rez12_14A); Serial.print(" ");
+    Serial.print(" 24B: "); Serial.print(rez12_24B); Serial.print(" ");
+    Serial.print(" 34C: "); Serial.print(rez12_34C); Serial.print(" ");
+    Serial.print(" 44D: "); Serial.print(rez12_44D);
+    Serial.println(" ");
   }
 }
 
@@ -118,17 +87,17 @@ void sendCAN() {
   if (millis() - lastCanSend >= SendCanIntervalMS) {
     lastCanSend = millis();
 
-    data[0] = rez12_58 & 0xFF;
-    data[1] = (rez12_58 >> 8) & 0xFF;
+    data[0] = rez12_14A & 0xFF;
+    data[1] = (rez12_14A >> 8) & 0xFF;
 
-    data[2] = rez12_24 & 0xFF;
-    data[3] = (rez12_24 >> 8) & 0xFF;
+    data[2] = rez12_24B & 0xFF;
+    data[3] = (rez12_24B >> 8) & 0xFF;
 
-    data[4] = rez12_14 & 0xFF;
-    data[5] = (rez12_14 >> 8) & 0xFF;
+    data[4] = rez12_34C & 0xFF;
+    data[5] = (rez12_34C >> 8) & 0xFF;
 
-    data[6] = rez12_18 & 0xFF;
-    data[7] = (rez12_18 >> 8) & 0xFF;
+    data[6] = rez12_44D & 0xFF;
+    data[7] = (rez12_44D >> 8) & 0xFF;
 
     CAN0.sendMsgBuf(0x18FFFA00, 1, 8, data);
   }
@@ -141,12 +110,10 @@ void setup() {
 }
 
 void loop() {
-  handleGeneralPing(0x54, rez12_54,Serial3);
-  handleGeneralPing(0x24, rez12_24,Serial3);
-  handleGeneralPing(0x5C, rez12_5C,Serial3);
-  handleGeneralPing(0x58, rez12_58,Serial3);
-  handleGeneralPing(0x18,rez12_18,Serial2, DE_RE_PIN);
-  handleGeneralPing(0x14,rez12_14,Serial2, DE_RE_PIN);
+  handleGeneralPing(0x14, rez12_14A,Serial3);
+  handleGeneralPing(0x24, rez12_24B,Serial3);
+  handleGeneralPing(0x34, rez12_34C,Serial3);
+  handleGeneralPing(0x44, rez12_44D,Serial3);
   printValues();
   sendCAN();
 }
