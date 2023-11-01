@@ -1,4 +1,4 @@
-//works as is as of 10/27/2023 friday
+//works as is as of 11/1/2023 Wednesday
 #include <Arduino.h>
 #include <mcp_can.h>
  
