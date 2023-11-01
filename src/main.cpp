@@ -1,7 +1,7 @@
 //works as is as of 11/1/2023 Wednesday Zeroing senssor 24 with button 
 #include <Arduino.h>
 #include <mcp_can.h>
- 
+
 //********************************manip these
 bool debug_serialRead=false;
 bool debug_printValues=false;
@@ -9,12 +9,19 @@ unsigned long pingInterval = 1;
 unsigned long PrintDebugInterval = 500;
 unsigned long SendCanIntervalMS = 50;
 //********************************DONT TOUCH THESE Zeroing
-const int buttonPin = 2;
+const int buttonPin = 3;
 int buttonState = 0;   
-unsigned long lastRunTime_zero = 0;  
-unsigned long lastFinishZeroingTime = 0;
-const unsigned long interval_zero = 2000; 
-bool isZeroing=false;
+unsigned long lastRunTime_24_zero = 0;  
+unsigned long lastFinishZeroing_24_Time = 0;
+bool isZeroing_24=false;
+const unsigned long interval_zero = 200; 
+//********************************DONT TOUCH THESE Read CAN
+long unsigned int rxId;
+unsigned char len = 0;
+unsigned char rxBuf[8];
+char msgString[128];
+#define CAN0_INT 2
+long unsigned int PGNzeroing = 0x18FF0100;
 //********************************DONT TOUCH THESE
 unsigned long lastPing14_A = 0;
 unsigned long lastPing24_B = 0;
@@ -39,7 +46,7 @@ void initSerial() {
 }
 
 void initCAN() {
-  SPI.begin();
+   
   if (CAN0.begin(MCP_ANY, CAN_250KBPS, MCP_8MHZ) == CAN_OK) {
     Serial.println("MCP2515 Initialized Successfully!");
   } else {
@@ -111,35 +118,77 @@ void sendCAN() {
   }
 }
 
-void funcOnce() {
-  isZeroing=true;
+void funcZero_24_BTN() {
+  isZeroing_24=true;
   Serial3.write(0x26); //extended for 0x24
   Serial3.write(0x5E); // zero it 
-  lastFinishZeroingTime = millis();
+  lastFinishZeroing_24_Time = millis();
 }
 
-void loop_Zeroing() {
+void loop_Zeroing_BTN() {
   buttonState = digitalRead(buttonPin);
   unsigned long currentTime = millis();
-  if (buttonState == HIGH && currentTime - lastRunTime_zero >= interval_zero) {
-    funcOnce();
-    lastRunTime_zero = currentTime;  
+  if (buttonState == HIGH && currentTime - lastRunTime_24_zero >= interval_zero) {
+    funcZero_24_BTN();
+    lastRunTime_24_zero = currentTime;  
   }
-  if (isZeroing && currentTime - lastFinishZeroingTime >= interval_zero) {
+  if (isZeroing_24 && currentTime - lastFinishZeroing_24_Time >= interval_zero) {
     Serial.println("finished");
-    isZeroing = false;  // reset the flag
+    isZeroing_24 = false;  // reset the flag
   }
 }
 
+void Zero_14A(){
+ if(debug_printValues)Serial.println("zeroing A");
+ Serial3.write(0x16); //extended for 0x14
+ Serial3.write(0x5E); // zero it 
+ delay(200);
+}
+void Zero_24B(){
+ if(debug_printValues)Serial.println("zeroing B");
+ Serial3.write(0x26); //extended for 0x24
+ Serial3.write(0x5E); // zero it 
+ delay(200);
+}
+void Zero_34C(){
+ if(debug_printValues)Serial.println("zeroing C");
+ Serial3.write(0x36); //extended for 0x34
+ Serial3.write(0x5E); // zero it 
+ delay(200);
+}
+void Zero_44D(){
+ if(debug_printValues)Serial.println("zeroing D");
+ Serial3.write(0x46); //extended for 0x44
+ Serial3.write(0x5E); // zero it 
+ delay(200);
+}
 //*********************************setup and void loop()
 void setup() {
   initSerial();
   initCAN();
 }
-
+void loopReadCan(){
+  if(!digitalRead(CAN0_INT))  // If CAN0_INT pin is low, read receive buffer
+  {
+    CAN0.readMsgBuf(&rxId, &len, rxBuf); 
+    if((rxId & 0x80000000) == 0x80000000)     // Determine if ID is 29bit
+    {
+     long unsigned int recid =rxId & 0x1FFFFFFF;
+    if(recid == PGNzeroing){
+       if(len>=4){
+        if(rxBuf[0]>0){Zero_14A();}
+        if(rxBuf[1]>0){Zero_24B();}
+        if(rxBuf[2]>0){Zero_34C();}
+        if(rxBuf[3]>0){Zero_44D();}
+       }
+    }
+    }
+  } 
+}
 void loop() {
-  loop_Zeroing();
-  if(!isZeroing){
+  loop_Zeroing_BTN();
+  if(!isZeroing_24){
+    loopReadCan();
     handleGeneralPing(0x14, rez12_14A,Serial3);
     handleGeneralPing(0x24, rez12_24B,Serial3);
     handleGeneralPing(0x34, rez12_34C,Serial3);
