@@ -1,4 +1,4 @@
-//works as is as of 11/1/2023 Wednesday
+//works as is as of 11/1/2023 Wednesday Zeroing senssor 24 with button 
 #include <Arduino.h>
 #include <mcp_can.h>
  
@@ -8,6 +8,13 @@ bool debug_printValues=false;
 unsigned long pingInterval = 1;
 unsigned long PrintDebugInterval = 500;
 unsigned long SendCanIntervalMS = 50;
+//********************************DONT TOUCH THESE Zeroing
+const int buttonPin = 2;
+int buttonState = 0;   
+unsigned long lastRunTime_zero = 0;  
+unsigned long lastFinishZeroingTime = 0;
+const unsigned long interval_zero = 2000; 
+bool isZeroing=false;
 //********************************DONT TOUCH THESE
 unsigned long lastPing14_A = 0;
 unsigned long lastPing24_B = 0;
@@ -23,6 +30,7 @@ int rez12_44D = 0;
 MCP_CAN CAN0(10);
  
 void initSerial() {
+   pinMode(buttonPin, INPUT);//********************Zeroing
   Serial.begin(115200);
   delay(200);
   Serial3.begin(38400);
@@ -103,6 +111,26 @@ void sendCAN() {
   }
 }
 
+void funcOnce() {
+  isZeroing=true;
+  Serial3.write(0x26); //extended for 0x24
+  Serial3.write(0x5E); // zero it 
+  lastFinishZeroingTime = millis();
+}
+
+void loop_Zeroing() {
+  buttonState = digitalRead(buttonPin);
+  unsigned long currentTime = millis();
+  if (buttonState == HIGH && currentTime - lastRunTime_zero >= interval_zero) {
+    funcOnce();
+    lastRunTime_zero = currentTime;  
+  }
+  if (isZeroing && currentTime - lastFinishZeroingTime >= interval_zero) {
+    Serial.println("finished");
+    isZeroing = false;  // reset the flag
+  }
+}
+
 //*********************************setup and void loop()
 void setup() {
   initSerial();
@@ -110,12 +138,13 @@ void setup() {
 }
 
 void loop() {
-  handleGeneralPing(0x14, rez12_14A,Serial3);
-  handleGeneralPing(0x24, rez12_24B,Serial3);
-  handleGeneralPing(0x34, rez12_34C,Serial3);
-  handleGeneralPing(0x44, rez12_44D,Serial3);
-  printValues();
-  sendCAN();
+  loop_Zeroing();
+  if(!isZeroing){
+    handleGeneralPing(0x14, rez12_14A,Serial3);
+    handleGeneralPing(0x24, rez12_24B,Serial3);
+    handleGeneralPing(0x34, rez12_34C,Serial3);
+    handleGeneralPing(0x44, rez12_44D,Serial3);
+    printValues();
+    sendCAN();
+  }
 }
- 
- 
