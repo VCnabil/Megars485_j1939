@@ -36,7 +36,7 @@ struct Sensor {
     int rez12 = (((int)(argdata[1] & 0x3F) << 8) | argdata[0]) >> 2;
     return rez12;
   }
-void handlePing() {
+  void handlePing() {
     if (millis() - lastPing >= pingInterval) {
       lastPing = millis();
       serialPort.write(id);
@@ -46,7 +46,9 @@ void handlePing() {
         Data_rec[0] = serialPort.read();
         Data_rec[1] = serialPort.read();
         rez12 = processSensorData(Data_rec);
-      } else {
+      } 
+      else 
+      {
         if (debug_serialRead) {
           Serial.print("No data ");
           Serial.println(id, HEX);
