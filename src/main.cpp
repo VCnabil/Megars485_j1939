@@ -7,7 +7,7 @@ bool debug_serialRead=false;
 bool debug_printValues=false;
 unsigned long pingInterval = 1;
 unsigned long PrintDebugInterval = 500;
-unsigned long SendCanIntervalMS = 50;
+unsigned long SendCanIntervalMS = 100;
 //********************************DONT TOUCH THESE Zeroing
 const int buttonPin = 3;
 int buttonState = 0;   
@@ -40,7 +40,7 @@ void initSerial() {
    pinMode(buttonPin, INPUT);//********************Zeroing
   Serial.begin(115200);
   delay(200);
-  Serial3.begin(38400);
+  Serial3.begin(115200);
   Serial.println("RS485-Test");
   delay(200);  
 }
