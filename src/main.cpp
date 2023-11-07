@@ -5,9 +5,9 @@
 //********************************manip these
 bool debug_serialRead = false;
 bool debug_printValues = false;
-bool debug_printTimers = true;
-unsigned long pingInterval_US = 600;
-unsigned long pingIntervalWithResponse_US = 780;
+bool debug_printTimers = false;
+unsigned long pingInterval_US = 6000;
+unsigned long pingIntervalWithResponse_US = 784;
 unsigned long PrintDebugInterval_US = 500000;
 unsigned long SendCanInterval_US = 100000;
 //********************************last debug timers printtime
@@ -30,8 +30,8 @@ unsigned long lastCanSend_US = 0;
 const int MAX_ZERO_QUEUE = 4;
 byte zeroQueue[MAX_ZERO_QUEUE];
 int zeroQueueIndex = 0;
-unsigned long lastZeroSensorTime = 0;
-unsigned long ZeroingIntervals = 2000;
+unsigned long lastZeroSensorTime_US= 0;
+unsigned long ZeroingIntervals_US = 900;
 MCP_CAN CAN0(10);
 
 // Sensor struct to encapsulate sensor-related data and operations
@@ -86,7 +86,7 @@ void addToZeroQueue(byte sensorID) {
 
 void zeroSensor() {
   unsigned long currentMicros = micros();
-  if (zeroQueueIndex > 0 && currentMicros - lastZeroSensorTime >= ZeroingIntervals) {
+  if (zeroQueueIndex > 0 && currentMicros - lastZeroSensorTime_US >= ZeroingIntervals_US) {
     byte sensorID = zeroQueue[0];
     if (debug_printValues) {
       Serial.print("zeroing ");
@@ -94,7 +94,7 @@ void zeroSensor() {
     }
     Serial3.write(sensorID + 2);  // extended ID
     Serial3.write(0x5E);  // zero command
-    lastZeroSensorTime = currentMicros;
+    lastZeroSensorTime_US = currentMicros;
     for (int i = 1; i < zeroQueueIndex; i++) {
       zeroQueue[i - 1] = zeroQueue[i];
     }
