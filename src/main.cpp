@@ -1,6 +1,11 @@
 //works as is as of 11/7/2023 Tuesday using micros with NOOVERFLOW and loop timer! 
 #include <Arduino.h>
 #include <mcp_can.h>
+//averaging
+bool Sensor_A_useAverage=true;
+bool Sensor_B_useAverage=true;
+bool Sensor_C_useAverage=true;
+bool Sensor_D_useAverage=true;
 
 //********************************manip these
 bool debug_serialRead = false;
@@ -37,18 +42,34 @@ MCP_CAN CAN0(10);
 // Sensor struct to encapsulate sensor-related data and operations
 struct Sensor {
   byte id;
-  unsigned long lastPing;
+  unsigned long _lastPing;
   int rez12;
+  long sumRez12; // Sum of all readings since last CAN message
+  int countRez12; // Count of readings since last CAN message
+  bool useAverage;
   HardwareSerial &serialPort;
-  Sensor(byte _id, HardwareSerial &_serialPort) : id(_id), lastPing(0), rez12(0), serialPort(_serialPort) {}
+Sensor(byte _id, HardwareSerial &_serialPort, bool _useAverage) : id(_id), _lastPing(0), rez12(0), sumRez12(0), countRez12(0), useAverage(_useAverage), serialPort(_serialPort) {}  
   int processSensorData(byte argdata[2]) {
-    int rez12 = (((int)(argdata[1] & 0x3F) << 8) | argdata[0]) >> 2;
-    return rez12;
+    int newRez12 = (((int)(argdata[1] & 0x3F) << 8) | argdata[0]) >> 2;
+    if (useAverage) {
+      sumRez12 += newRez12;
+      countRez12++;
+    } else {
+      rez12 = newRez12;
+    }
+    return newRez12;
+  }
+  int getAverageRez12() {
+    if (countRez12 == 0) return rez12; // Return the last direct value if no readings have been taken
+    int average = sumRez12 / countRez12;
+    sumRez12 = 0; // Reset sum after calculating average
+    countRez12 = 0; // Reset count after calculating average
+    return average;
   }
   void handlePing() {
     unsigned long currentMicros = micros();
-    if (currentMicros - lastPing >= pingInterval_US) {
-      lastPing = currentMicros; 
+    if (currentMicros - _lastPing >= pingInterval_US) {
+      _lastPing = currentMicros; 
       serialPort.write(id);
       unsigned long startDelayTime = currentMicros;
       while (micros() - startDelayTime < pingIntervalWithResponse_US) {
@@ -72,10 +93,10 @@ struct Sensor {
 
 // Global sensor objects
 Sensor sensors[] = {
-  {0x14, Serial3},
-  {0x24, Serial3},
-  {0x34, Serial3},
-  {0x44, Serial3}
+  {0x14, Serial3,Sensor_A_useAverage},
+  {0x24, Serial3,Sensor_B_useAverage},
+  {0x34, Serial3,Sensor_C_useAverage},
+  {0x44, Serial3,Sensor_D_useAverage}
 };
 
 void addToZeroQueue(byte sensorID) {
@@ -119,7 +140,7 @@ void initCAN() {
   CAN0.setMode(MCP_NORMAL);
 }
 
-void sendCAN() {
+void sendCANcoaerage() {
   unsigned long currentMicros = micros();
   if (currentMicros - lastCanSend_US >= SendCanInterval_US) {
     lastCanSend_US = currentMicros;
@@ -129,6 +150,21 @@ void sendCAN() {
       data[i * 2 + 1] = (sensors[i].rez12 >> 8) & 0xFF;
     }
     CAN0.sendMsgBuf(PGN_posData, 1, 8, data);
+  }
+}
+
+void sendCAN() {
+  unsigned long currentMicros = micros();
+  if (currentMicros - lastCanSend_US >= SendCanInterval_US) {
+    lastCanSend_US = currentMicros;
+    byte data[8];
+    for (int i = 0; i < 4; i++) {
+      // Use the average or direct value based on the useAverage flag
+      sensors[i].rez12 = sensors[i].useAverage ? sensors[i].getAverageRez12() : sensors[i].rez12;
+      data[i * 2] = sensors[i].rez12 & 0xFF;
+      data[i * 2 + 1] = (sensors[i].rez12 >> 8) & 0xFF;
+    }
+    CAN0.sendMsgBuf(0x18FFFA00, 1, 8, data);
   }
 }
 
