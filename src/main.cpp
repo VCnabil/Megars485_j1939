@@ -1,16 +1,17 @@
-//works as is as of 11/7/2023 Tuesday using micros and loop timer! 
+//works as is as of 11/7/2023 Tuesday using micros with NOOVERFLOW and loop timer! 
 #include <Arduino.h>
 #include <mcp_can.h>
+
 //********************************manip these
-bool debug_serialRead=false;
-bool debug_printValues=false;
+bool debug_serialRead = false;
+bool debug_printValues = false;
 unsigned long pingInterval = 700;
-unsigned long pingIntervalWitResponce =700;
+unsigned long pingIntervalWithResponse = 700;
 unsigned long PrintDebugInterval = 500000;
 unsigned long SendCanIntervalMS = 100000;
-//********************************last debud timers printtime
-unsigned long lastPrintTimeDebugtimer = 0;
-unsigned long printIntervalDebugtimer = 1000000; 
+//********************************last debug timers printtime
+unsigned long lastPrintTimeDebugTimer = 0;
+unsigned long printIntervalDebugTimer = 1000000; 
 unsigned long maxDurationTimerSensorsPing = 0;
 unsigned long maxDurationTimerLoop = 0;
 //********************************DONT TOUCH THESE Read CAN
@@ -43,15 +44,13 @@ struct Sensor {
     return rez12;
   }
   void handlePing() {
-    if (micros() - lastPing >= pingInterval) {
-      lastPing = micros(); 
+    unsigned long currentMicros = micros();
+    if (currentMicros - lastPing >= pingInterval) {
+      lastPing = currentMicros; 
       serialPort.write(id);
-      unsigned long startDelayTime = micros();
-      bool delayCompleted = false;
-      while (!delayCompleted) {
-        if (micros() - startDelayTime >= pingIntervalWitResponce) {
-          delayCompleted = true;  
-        }
+      unsigned long startDelayTime = currentMicros;
+      while (micros() - startDelayTime < pingIntervalWithResponse) {
+        // Just wait
       }
       if (serialPort.available() == 2) {
         byte Data_rec[2];
@@ -67,7 +66,6 @@ struct Sensor {
       while (serialPort.available()) serialPort.read();
     }
   }
-
 };
 
 // Global sensor objects
@@ -85,21 +83,20 @@ void addToZeroQueue(byte sensorID) {
 }
 
 void zeroSensor() {
-  if (zeroQueueIndex > 0) {
-    if (micros() - lastZeroSensorTime >= ZeroingIntervals) {
-      byte sensorID = zeroQueue[0];
-      if (debug_printValues) {
-        Serial.print("zeroing ");
-        Serial.println(sensorID, HEX);
-      }
-      Serial3.write(sensorID + 2);  // extended ID
-      Serial3.write(0x5E);  // zero command
-      lastZeroSensorTime = micros();
-      for (int i = 1; i < zeroQueueIndex; i++) {
-        zeroQueue[i - 1] = zeroQueue[i];
-      }
-      zeroQueueIndex--;
+  unsigned long currentMicros = micros();
+  if (zeroQueueIndex > 0 && currentMicros - lastZeroSensorTime >= ZeroingIntervals) {
+    byte sensorID = zeroQueue[0];
+    if (debug_printValues) {
+      Serial.print("zeroing ");
+      Serial.println(sensorID, HEX);
     }
+    Serial3.write(sensorID + 2);  // extended ID
+    Serial3.write(0x5E);  // zero command
+    lastZeroSensorTime = currentMicros;
+    for (int i = 1; i < zeroQueueIndex; i++) {
+      zeroQueue[i - 1] = zeroQueue[i];
+    }
+    zeroQueueIndex--;
   }
 }
 
@@ -121,8 +118,9 @@ void initCAN() {
 }
 
 void sendCAN() {
-  if (micros() - lastCanSend >= SendCanIntervalMS) {
-    lastCanSend = micros();
+  unsigned long currentMicros = micros();
+  if (currentMicros - lastCanSend >= SendCanIntervalMS) {
+    lastCanSend = currentMicros;
     byte data[8];
     for (int i = 0; i < 4; i++) {
       data[i * 2] = sensors[i].rez12 & 0xFF;
@@ -149,9 +147,9 @@ void loopReadCan() {
 }
 
 void printValues() {
-  if (!debug_printValues) return;
-  if (micros() - lastPrintDebug >= PrintDebugInterval) {
-    lastPrintDebug = micros();
+  unsigned long currentMicros = micros();
+  if (debug_printValues && currentMicros - lastPrintDebug >= PrintDebugInterval) {
+    lastPrintDebug = currentMicros;
     for (Sensor &sensor : sensors) {
       Serial.print(" ");
       Serial.print(sensor.id, HEX);
@@ -161,6 +159,7 @@ void printValues() {
     Serial.println();
   }
 }
+
 //**********************************************************Setup and loop
 void setup() {
   initSerial();
@@ -188,10 +187,9 @@ void loop() {
   if (durationTimerLoop > maxDurationTimerLoop) {
     maxDurationTimerLoop = durationTimerLoop;
   }
-  if (micros() - lastPrintTimeDebugtimer >= printIntervalDebugtimer) {
-    lastPrintTimeDebugtimer = micros();
+  if (micros() - lastPrintTimeDebugTimer >= printIntervalDebugTimer) {
+    lastPrintTimeDebugTimer = micros();
     Serial.print("Max Sensor Ping Duration: "); Serial.print(maxDurationTimerSensorsPing); Serial.println(" us");
     Serial.print("Max Loop Duration: "); Serial.print(maxDurationTimerLoop); Serial.println(" us");
   }
- 
 }
