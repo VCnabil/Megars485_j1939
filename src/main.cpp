@@ -4,9 +4,12 @@
 //********************************manip these
 bool debug_serialRead=false;
 bool debug_printValues=false;
-unsigned long pingInterval = 1;
-unsigned long PrintDebugInterval = 500;
-unsigned long SendCanIntervalMS = 100;
+unsigned long pingInterval = 1000;
+unsigned long PrintDebugInterval = 500000;
+unsigned long SendCanIntervalMS = 100000;
+//********************************last debud timers printtime
+unsigned long lastPrintTimeDebugtimer = 0;
+unsigned long printIntervalDebugtimer = 1000000; 
 //********************************DONT TOUCH THESE Read CAN
 long unsigned int rxId;
 unsigned char len = 0;
@@ -37,8 +40,8 @@ struct Sensor {
     return rez12;
   }
   void handlePingdelay() {
-    if (millis() - lastPing >= pingInterval) {
-      lastPing = millis();
+    if (micros() - lastPing >= pingInterval) {
+      lastPing = micros();
       serialPort.write(id);
       delay(1);
       if (serialPort.available() == 2) {
@@ -58,8 +61,8 @@ struct Sensor {
     }
   }
 void handlePing() {
-  if (millis() - lastPing >= pingInterval) {
-    lastPing = millis(); // Update lastPing to the current time
+  if (micros() - lastPing >= pingInterval) {
+    lastPing = micros(); // Update lastPing to the current time
     serialPort.write(id);
 
     // Record the start time of the non-blocking delay
@@ -68,7 +71,7 @@ void handlePing() {
 
     // Wait for 1 millisecond to pass
     while (!delayCompleted) {
-      if (micros() - startDelayTime >= 800) {
+      if (micros() - startDelayTime >= 1000) {
         delayCompleted = true; // Exit the loop when 1 millisecond has passed
       }
     }
@@ -108,7 +111,7 @@ void addToZeroQueue(byte sensorID) {
 
 void zeroSensor() {
   if (zeroQueueIndex > 0) {
-    if (millis() - lastZeroSensorTime >= ZeroingIntervals) {
+    if (micros() - lastZeroSensorTime >= ZeroingIntervals) {
       byte sensorID = zeroQueue[0];
       if (debug_printValues) {
         Serial.print("zeroing ");
@@ -116,7 +119,7 @@ void zeroSensor() {
       }
       Serial3.write(sensorID + 2);  // extended ID
       Serial3.write(0x5E);  // zero command
-      lastZeroSensorTime = millis();
+      lastZeroSensorTime = micros();
       // Shift the queue
       for (int i = 1; i < zeroQueueIndex; i++) {
         zeroQueue[i - 1] = zeroQueue[i];
@@ -144,8 +147,8 @@ void initCAN() {
 }
 
 void sendCAN() {
-  if (millis() - lastCanSend >= SendCanIntervalMS) {
-    lastCanSend = millis();
+  if (micros() - lastCanSend >= SendCanIntervalMS) {
+    lastCanSend = micros();
     byte data[8];
     for (int i = 0; i < 4; i++) {
       data[i * 2] = sensors[i].rez12 & 0xFF;
@@ -173,8 +176,8 @@ void loopReadCan() {
 
 void printValues() {
   if (!debug_printValues) return;
-  if (millis() - lastPrintDebug >= PrintDebugInterval) {
-    lastPrintDebug = millis();
+  if (micros() - lastPrintDebug >= PrintDebugInterval) {
+    lastPrintDebug = micros();
     for (Sensor &sensor : sensors) {
       Serial.print(" ");
       Serial.print(sensor.id, HEX);
@@ -230,8 +233,11 @@ void loop() {
     maxDurationTimerLoop = durationTimerLoop;
   }
 
-  // At the end of the loop, print the max durations
-  Serial.print("Max Sensor Ping Duration: "); Serial.print(maxDurationTimerSensorsPing); Serial.println(" us");
-  Serial.print("Max Loop Duration: "); Serial.print(maxDurationTimerLoop); Serial.println(" us");
-
+  // Print the max durations at the specified interval
+  if (micros() - lastPrintTimeDebugtimer >= printIntervalDebugtimer) {
+    lastPrintTimeDebugtimer = micros();
+    Serial.print("Max Sensor Ping Duration: "); Serial.print(maxDurationTimerSensorsPing); Serial.println(" us");
+    Serial.print("Max Loop Duration: "); Serial.print(maxDurationTimerLoop); Serial.println(" us");
+  }
+ 
 }
