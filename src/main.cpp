@@ -4,7 +4,8 @@
 //********************************manip these
 bool debug_serialRead=false;
 bool debug_printValues=false;
-unsigned long pingInterval = 1000;
+unsigned long pingInterval = 700;
+unsigned long pingIntervalWitResponce =700;
 unsigned long PrintDebugInterval = 500000;
 unsigned long SendCanIntervalMS = 100000;
 //********************************last debud timers printtime
@@ -71,7 +72,7 @@ void handlePing() {
 
     // Wait for 1 millisecond to pass
     while (!delayCompleted) {
-      if (micros() - startDelayTime >= 1000) {
+      if (micros() - startDelayTime >= pingIntervalWitResponce) {
         delayCompleted = true; // Exit the loop when 1 millisecond has passed
       }
     }
