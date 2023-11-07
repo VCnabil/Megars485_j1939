@@ -5,15 +5,16 @@
 //********************************manip these
 bool debug_serialRead = false;
 bool debug_printValues = false;
-unsigned long pingInterval = 700;
-unsigned long pingIntervalWithResponse = 700;
-unsigned long PrintDebugInterval = 500000;
-unsigned long SendCanIntervalMS = 100000;
+bool debug_printTimers = true;
+unsigned long pingInterval_US = 600;
+unsigned long pingIntervalWithResponse_US = 780;
+unsigned long PrintDebugInterval_US = 500000;
+unsigned long SendCanInterval_US = 100000;
 //********************************last debug timers printtime
-unsigned long lastPrintTimeDebugTimer = 0;
-unsigned long printIntervalDebugTimer = 1000000; 
-unsigned long maxDurationTimerSensorsPing = 0;
-unsigned long maxDurationTimerLoop = 0;
+unsigned long lastPrintTimeDebugTimer_US = 0;
+unsigned long printIntervalDebugTimer_US = 1000000; 
+unsigned long maxDurationTimerSensorsPing_US = 0;
+unsigned long maxDurationTimerLoop_US = 0;
 //********************************DONT TOUCH THESE Read CAN
 long unsigned int rxId;
 unsigned char len = 0;
@@ -21,15 +22,16 @@ unsigned char rxBuf[8];
 char msgString[128];
 #define CAN0_INT 2
 long unsigned int PGNzeroing = 0x18FF0100;
+long unsigned int PGN_posData = 0x18FFFA00;
 //********************************DONT TOUCH THESE
-unsigned long lastPrintDebug = 0;
-unsigned long lastCanSend = 0;
+unsigned long lastPrintDebug_US = 0;
+unsigned long lastCanSend_US = 0;
 //********************************Zeroing without delay
 const int MAX_ZERO_QUEUE = 4;
 byte zeroQueue[MAX_ZERO_QUEUE];
 int zeroQueueIndex = 0;
 unsigned long lastZeroSensorTime = 0;
-unsigned long ZeroingIntervals = 20;
+unsigned long ZeroingIntervals = 2000;
 MCP_CAN CAN0(10);
 
 // Sensor struct to encapsulate sensor-related data and operations
@@ -45,11 +47,11 @@ struct Sensor {
   }
   void handlePing() {
     unsigned long currentMicros = micros();
-    if (currentMicros - lastPing >= pingInterval) {
+    if (currentMicros - lastPing >= pingInterval_US) {
       lastPing = currentMicros; 
       serialPort.write(id);
       unsigned long startDelayTime = currentMicros;
-      while (micros() - startDelayTime < pingIntervalWithResponse) {
+      while (micros() - startDelayTime < pingIntervalWithResponse_US) {
         // Just wait
       }
       if (serialPort.available() == 2) {
@@ -119,14 +121,14 @@ void initCAN() {
 
 void sendCAN() {
   unsigned long currentMicros = micros();
-  if (currentMicros - lastCanSend >= SendCanIntervalMS) {
-    lastCanSend = currentMicros;
+  if (currentMicros - lastCanSend_US >= SendCanInterval_US) {
+    lastCanSend_US = currentMicros;
     byte data[8];
     for (int i = 0; i < 4; i++) {
       data[i * 2] = sensors[i].rez12 & 0xFF;
       data[i * 2 + 1] = (sensors[i].rez12 >> 8) & 0xFF;
     }
-    CAN0.sendMsgBuf(0x18FFFA00, 1, 8, data);
+    CAN0.sendMsgBuf(PGN_posData, 1, 8, data);
   }
 }
 
@@ -148,8 +150,8 @@ void loopReadCan() {
 
 void printValues() {
   unsigned long currentMicros = micros();
-  if (debug_printValues && currentMicros - lastPrintDebug >= PrintDebugInterval) {
-    lastPrintDebug = currentMicros;
+  if (debug_printValues && currentMicros - lastPrintDebug_US >= PrintDebugInterval_US) {
+    lastPrintDebug_US = currentMicros;
     for (Sensor &sensor : sensors) {
       Serial.print(" ");
       Serial.print(sensor.id, HEX);
@@ -174,8 +176,8 @@ void loop() {
     sensor.handlePing();
   }
   unsigned long durationTimerSensorsPing = micros() - startTimerSensorsPing;
-  if (durationTimerSensorsPing > maxDurationTimerSensorsPing) {
-    maxDurationTimerSensorsPing = durationTimerSensorsPing;
+  if (durationTimerSensorsPing > maxDurationTimerSensorsPing_US) {
+    maxDurationTimerSensorsPing_US = durationTimerSensorsPing;
   }
 
   printValues();
@@ -184,12 +186,14 @@ void loop() {
   zeroSensor();
 
   unsigned long durationTimerLoop = micros() - startTimerLoop;
-  if (durationTimerLoop > maxDurationTimerLoop) {
-    maxDurationTimerLoop = durationTimerLoop;
+  if (durationTimerLoop > maxDurationTimerLoop_US) {
+    maxDurationTimerLoop_US = durationTimerLoop;
   }
-  if (micros() - lastPrintTimeDebugTimer >= printIntervalDebugTimer) {
-    lastPrintTimeDebugTimer = micros();
-    Serial.print("Max Sensor Ping Duration: "); Serial.print(maxDurationTimerSensorsPing); Serial.println(" us");
-    Serial.print("Max Loop Duration: "); Serial.print(maxDurationTimerLoop); Serial.println(" us");
+  if (micros() - lastPrintTimeDebugTimer_US >= printIntervalDebugTimer_US) {
+    lastPrintTimeDebugTimer_US = micros();
+    if(debug_printTimers==true){
+      Serial.print("Max Sensor Ping Duration: "); Serial.print(maxDurationTimerSensorsPing_US); Serial.println(" us");
+      Serial.print("Max Loop Duration: "); Serial.print(maxDurationTimerLoop_US); Serial.println(" us");
+    }
   }
 }
