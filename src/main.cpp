@@ -36,7 +36,7 @@ struct Sensor {
     int rez12 = (((int)(argdata[1] & 0x3F) << 8) | argdata[0]) >> 2;
     return rez12;
   }
-  void handlePing() {
+  void handlePingdelay() {
     if (millis() - lastPing >= pingInterval) {
       lastPing = millis();
       serialPort.write(id);
@@ -57,6 +57,39 @@ struct Sensor {
       while (serialPort.available()) serialPort.read();
     }
   }
+void handlePing() {
+  if (millis() - lastPing >= pingInterval) {
+    lastPing = millis(); // Update lastPing to the current time
+    serialPort.write(id);
+
+    // Record the start time of the non-blocking delay
+    unsigned long startDelayTime = micros();
+    bool delayCompleted = false;
+
+    // Wait for 1 millisecond to pass
+    while (!delayCompleted) {
+      if (micros() - startDelayTime >= 800) {
+        delayCompleted = true; // Exit the loop when 1 millisecond has passed
+      }
+    }
+
+    // Now check for available data after the non-blocking delay
+    if (serialPort.available() == 2) {
+      byte Data_rec[2];
+      Data_rec[0] = serialPort.read();
+      Data_rec[1] = serialPort.read();
+      rez12 = processSensorData(Data_rec);
+    } else {
+      if (debug_serialRead) {
+        Serial.print("No data ");
+        Serial.println(id, HEX);
+      }
+    }
+    // Clear the serial buffer
+    while (serialPort.available()) serialPort.read();
+  }
+}
+
 };
 
 // Global sensor objects
@@ -157,12 +190,48 @@ void setup() {
   initCAN();
 }
 
-void loop() {
+void loopUntimed () {
   for (Sensor &sensor : sensors) {
     sensor.handlePing();
   }
   printValues();
   sendCAN();
   loopReadCan();
+  zeroSensor(); 
+}
+unsigned long maxDurationTimerSensorsPing = 0;
+unsigned long maxDurationTimerLoop = 0;
+void loop() {
+   // Start timer for the entire loop
+  unsigned long startTimerLoop = micros();
+  // Start timer for sensor handling
+  unsigned long startTimerSensorsPing = micros();
+
+  for (Sensor &sensor : sensors) {
+    sensor.handlePing();
+  }
+
+  // Calculate how long sensor handling took in microseconds
+  unsigned long durationTimerSensorsPing = micros() - startTimerSensorsPing;
+  // Update max duration if the current duration is greater than the max
+  if (durationTimerSensorsPing > maxDurationTimerSensorsPing) {
+    maxDurationTimerSensorsPing = durationTimerSensorsPing;
+  }
+
+  printValues();
+  sendCAN();
+  loopReadCan();
   zeroSensor();
+
+   // Calculate how long the entire loop took in microseconds
+  unsigned long durationTimerLoop = micros() - startTimerLoop;
+  // Update max duration if the current duration is greater than the max
+  if (durationTimerLoop > maxDurationTimerLoop) {
+    maxDurationTimerLoop = durationTimerLoop;
+  }
+
+  // At the end of the loop, print the max durations
+  Serial.print("Max Sensor Ping Duration: "); Serial.print(maxDurationTimerSensorsPing); Serial.println(" us");
+  Serial.print("Max Loop Duration: "); Serial.print(maxDurationTimerLoop); Serial.println(" us");
+
 }
