@@ -9,7 +9,7 @@ bool debug_printTimers = false;
 unsigned long pingInterval_US = 6000;
 unsigned long pingIntervalWithResponse_US = 784;
 unsigned long PrintDebugInterval_US = 500000;
-unsigned long SendCanInterval_US = 100000;
+unsigned long SendCanInterval_US =  600000;// 100000;
 //********************************last debug timers printtime
 unsigned long lastPrintTimeDebugTimer_US = 0;
 unsigned long printIntervalDebugTimer_US = 1000000; 
