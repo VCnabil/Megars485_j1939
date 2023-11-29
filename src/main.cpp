@@ -22,7 +22,10 @@ unsigned char rxBuf[8];
 char msgString[128];
 #define CAN0_INT 2
 long unsigned int PGNzeroing = 0x18FF0100;
-long unsigned int PGN_posData = 0x18FFFA00;
+long unsigned int PGN_posData = 0x18FFFA00; //0x18FFC228; // 0x18FFFA00
+
+
+
 //********************************DONT TOUCH THESE
 unsigned long lastPrintDebug_US = 0;
 unsigned long lastCanSend_US = 0;
@@ -119,6 +122,65 @@ void initCAN() {
   CAN0.setMode(MCP_NORMAL);
 }
 
+void initCCMMessages(){
+
+  /*
+fix this 
+long unsigned int pgn0= 0x18ff0806	data0=	0	0	0	0	0	0	0	0
+long unsigned int pgn1= 0x18ff8a29	data1=		0	0	0	0	f4	1	f4	1
+long unsigned int pgn2= 0x18ff8d29	data2=		0	0	93	16	51	e9	3	0
+long unsigned int pgn3= 0x18ff8c28	data3=		0	0	0	0	0	0	0	0
+long unsigned int pgn4= 0x18ff8e28	data4=		0	0	fe	0f	52	e8	3	0
+long unsigned int pgn5= 0x8f02de2		data5=	e9	7c	36	7d	db	80	0	0
+so i can use this in my arduino code
+ CAN0.sendMsgBuf(pgn5, 1, 8, data5);
+  */
+
+
+  unsigned long pgn0 = 0x18FF0806;
+  unsigned long pgn1 = 0x18FF8A29;
+  unsigned long pgn2 = 0x18FF8D29;
+  unsigned long pgn3 = 0x18FF8C28;
+  unsigned long pgn4 = 0x18FF8E28;
+    unsigned long pgn5 = 0x18FFC028;
+unsigned long pgn6 = 0x18FFC228;
+
+  unsigned long pgn7 = 0x08F02DE2; 
+
+  // Define CAN data arrays
+  byte data0[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  byte data1[8] = {0, 0, 0, 0, 0xF4, 0x01, 0xF4, 0x01};
+  byte data2[8] = {0, 0, 0x93, 0x16, 0x51, 0xE9, 0x03, 0x00};
+  byte data3[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  byte data4[8] = {0, 0, 0xFE, 0x0F, 0x52, 0xE8, 0x03, 0x00};
+  byte data5[8] = {0x65, 0x8F, 0xC0, 0xFF, 0x28, 0x00, 0x9E, 0x21};
+  byte data6[8] = {0x02, 0x08, 0x04, 0x08, 0x3F, 0x0C, 0x4B, 0x0C};
+
+  byte data7[8] = {0xE9, 0x7C, 0x36, 0x7D, 0xDB, 0x80, 0x00, 0x00};
+
+  // Send CAN messages
+  delay(1000);
+  CAN0.sendMsgBuf(pgn0, 1, 8, data0);
+  delay(100);
+  CAN0.sendMsgBuf(pgn1, 1, 8, data1);
+    delay(100);
+  CAN0.sendMsgBuf(pgn2, 1, 8, data2);
+    delay(100);
+  CAN0.sendMsgBuf(pgn3, 1, 8, data3);
+    delay(100);
+  CAN0.sendMsgBuf(pgn4, 1, 8, data4);
+    delay(100);
+  CAN0.sendMsgBuf(pgn5, 1, 8, data5);
+   delay(100);
+    CAN0.sendMsgBuf(pgn6, 1, 8, data6);
+    delay(100);
+   CAN0.sendMsgBuf(pgn7, 1, 8, data7);
+
+
+    delay(1000);
+
+}
+
 void sendCAN() {
   unsigned long currentMicros = micros();
   if (currentMicros - lastCanSend_US >= SendCanInterval_US) {
@@ -166,6 +228,7 @@ void printValues() {
 void setup() {
   initSerial();
   initCAN();
+  initCCMMessages();
 }
 
 void loop() {
