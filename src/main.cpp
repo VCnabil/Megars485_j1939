@@ -21,10 +21,28 @@ unsigned char len = 0;
 unsigned char rxBuf[8];
 char msgString[128];
 #define CAN0_INT 2
-long unsigned int PGNzeroing = 0x18FF0100;
-long unsigned int PGN_posData = 0x18FFFA00; //0x18FFC228; // 0x18FFFA00
+long unsigned int PGNzeroing = 0x18FEED00;
+// lets use 18FEED00
+// 
+// to reset sensor
+//  a  b  c  d 
+//     use 
+// d0 d1 d2 d3 
+// 1  1  1  1 
+//  else leave 0 
+//                  use byte 
+//              d4
+//              0 -> Send ALL sesnssors on same Can frame
+//              1 -> Do the Wronowski 
+//
 
 
+//long unsigned int PGN_posArbitrary = 0x18FFFA00;
+long unsigned int PGN_posData = 0x18FFFA00;//0x18FFFA00;maybe too similar tto one of ours //0x18FFC228; // 0x18FFFA00
+// the wronowski pgns 
+long unsigned int PGN_posCU_A_RotSensor = 0x18FFCB00;
+long unsigned int PGN_posCU_B_RotSensor = 0x18FFCB01;
+bool _isWronowskiSend = true;
 
 //********************************DONT TOUCH THESE
 unsigned long lastPrintDebug_US = 0;
@@ -35,7 +53,7 @@ byte zeroQueue[MAX_ZERO_QUEUE];
 int zeroQueueIndex = 0;
 unsigned long lastZeroSensorTime_US= 0;
 unsigned long ZeroingIntervals_US = 900;
-MCP_CAN CAN0(10);
+MCP_CAN CAN0(9);
 
 // Sensor struct to encapsulate sensor-related data and operations
 struct Sensor {
@@ -124,26 +142,14 @@ void initCAN() {
 
 void initCCMMessages(){
 
-  /*
-fix this 
-long unsigned int pgn0= 0x18ff0806	data0=	0	0	0	0	0	0	0	0
-long unsigned int pgn1= 0x18ff8a29	data1=		0	0	0	0	f4	1	f4	1
-long unsigned int pgn2= 0x18ff8d29	data2=		0	0	93	16	51	e9	3	0
-long unsigned int pgn3= 0x18ff8c28	data3=		0	0	0	0	0	0	0	0
-long unsigned int pgn4= 0x18ff8e28	data4=		0	0	fe	0f	52	e8	3	0
-long unsigned int pgn5= 0x8f02de2		data5=	e9	7c	36	7d	db	80	0	0
-so i can use this in my arduino code
- CAN0.sendMsgBuf(pgn5, 1, 8, data5);
-  */
-
 
   unsigned long pgn0 = 0x18FF0806;
   unsigned long pgn1 = 0x18FF8A29;
   unsigned long pgn2 = 0x18FF8D29;
   unsigned long pgn3 = 0x18FF8C28;
   unsigned long pgn4 = 0x18FF8E28;
-    unsigned long pgn5 = 0x18FFC028;
-unsigned long pgn6 = 0x18FFC228;
+  unsigned long pgn5 = 0x18FFC028;
+  unsigned long pgn6 = 0x18FFC228;
 
   unsigned long pgn7 = 0x08F02DE2; 
 
@@ -181,16 +187,50 @@ unsigned long pgn6 = 0x18FFC228;
 
 }
 
-void sendCAN() {
-  unsigned long currentMicros = micros();
-  if (currentMicros - lastCanSend_US >= SendCanInterval_US) {
-    lastCanSend_US = currentMicros;
+void Send_Arbitrary_Format(){
     byte data[8];
     for (int i = 0; i < 4; i++) {
       data[i * 2] = sensors[i].rez12 & 0xFF;
       data[i * 2 + 1] = (sensors[i].rez12 >> 8) & 0xFF;
     }
     CAN0.sendMsgBuf(PGN_posData, 1, 8, data);
+
+}
+
+void Send_Wronowski_Format(){
+    byte data_AB[8];
+    byte data_CD[8];
+
+    data_AB[0] =0;//thrust low byte
+    data_AB[1] =0;//trust high byte
+    data_AB[2] = sensors[0].rez12 & 0xFF;         //sensor A low
+    data_AB[3] = (sensors[0].rez12 >> 8) & 0xFF;  //sensor A high
+    data_AB[4] = sensors[1].rez12 & 0xFF;
+    data_AB[5] = (sensors[1].rez12 >> 8) & 0xFF;
+    data_AB[6] = 0;
+    data_AB[7] =0;
+
+
+    data_CD[0] = 0;
+    data_CD[1] =0;
+    data_CD[2] = sensors[2].rez12 & 0xFF;
+    data_CD[3] = (sensors[2].rez12 >> 8) & 0xFF;
+    data_CD[4] = sensors[3].rez12 & 0xFF;
+    data_CD[5] = (sensors[3].rez12 >> 8) & 0xFF;
+    data_CD[6] = 0;
+    data_CD[7] =0;
+   
+    CAN0.sendMsgBuf(PGN_posCU_A_RotSensor, 1, 8, data_AB);
+    CAN0.sendMsgBuf(PGN_posCU_B_RotSensor, 1, 8, data_CD);
+
+}
+
+
+void sendCAN() {
+  unsigned long currentMicros = micros();
+  if (currentMicros - lastCanSend_US >= SendCanInterval_US) {
+    lastCanSend_US = currentMicros;
+    if(_isWronowskiSend){ Send_Wronowski_Format();}else{Send_Arbitrary_Format();}
   }
 }
 
@@ -205,6 +245,8 @@ void loopReadCan() {
             addToZeroQueue(sensors[i].id);
           }
         }
+        if(rxBuf[4]>0) {_isWronowskiSend=false;}
+        else {_isWronowskiSend=true;}
       }
     }
   }
@@ -228,7 +270,7 @@ void printValues() {
 void setup() {
   initSerial();
   initCAN();
-  initCCMMessages();
+  //initCCMMessages();
 }
 
 void loop() {
